@@ -1,0 +1,16 @@
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+pillow==10.2.0
+numpy==1.26.3
+
+# For TensorFlow-based models
+# tensorflow==2.15.0
+
+# For PyTorch-based models
+# torch==2.1.2
+# torchvision==0.16.2
+
+# Additional useful packages
+python-jose[cryptography]==3.3.0
+pydantic==2.5.3
