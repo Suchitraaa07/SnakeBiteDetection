@@ -1,8 +1,50 @@
 import React, { useState } from 'react';
 import { Shield, AlertTriangle, Map, Building2, Menu, X, Github, Info } from 'lucide-react';
 import ReportForm from './components/ReportForm';
-import HeatMap from './components/HeatMap';
 import HospitalLocator from './components/HospitalLocator';
+import RiskMap from './components/RiskMap';
+
+class RiskMapErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  componentDidUpdate(prevProps) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    console.error('RiskMap crashed:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          border: '1px solid rgba(239, 68, 68, 0.6)',
+          backgroundColor: 'rgba(127, 29, 29, 0.35)',
+          borderRadius: '12px',
+          padding: '16px',
+          color: '#fecaca'
+        }}>
+          <p style={{ margin: 0, fontWeight: 700 }}>Risk Map failed to load</p>
+          <p style={{ margin: '8px 0 0 0', fontSize: '14px' }}>
+            Please refresh the page. If this continues, check browser console logs for map plugin errors.
+          </p>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 function App() {
   console.log('✅ App component loaded');
@@ -16,8 +58,8 @@ function App() {
 
   const tabs = [
     { id: 'report', name: 'Report Bite', icon: AlertTriangle },
-    { id: 'map', name: 'Heatmap', icon: Map },
-    { id: 'hospitals', name: 'Find Hospitals', icon: Building2 }
+    { id: 'risk-map', name: 'Risk Map', icon: Map },
+    { id: 'hospitals', name: 'Hospitals', icon: Building2 }
   ];
 
   const handleReportSuccess = (result) => {
@@ -126,7 +168,11 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'map' && <HeatMap />}
+        {activeTab === 'risk-map' && (
+          <RiskMapErrorBoundary resetKey={activeTab}>
+            <RiskMap onReportSightingClick={() => setActiveTab('report')} />
+          </RiskMapErrorBoundary>
+        )}
 
         {activeTab === 'hospitals' && <HospitalLocator />}
       </main>

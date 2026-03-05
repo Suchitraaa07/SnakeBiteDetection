@@ -14,14 +14,18 @@ import {
     getEmergencyContacts,
     getRecentReports,
     updateReportStatus,
-    supabase 
+    supabase,
+    SUPABASE_CONFIGURED
 } from './supabaseClient.js';
 
 import { 
     predictBiteType, 
     checkAIServiceHealth, 
-    validateImage 
+    validateImage,
+    assessGeoRisk
 } from './aiService.js';
+
+import geoRoutes from './geospatial/geoRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -83,15 +87,70 @@ app.get('/api/health', async (req, res) => {
         timestamp: new Date().toISOString(),
         services: {
             api: 'operational',
-            database: 'operational',
+            database: SUPABASE_CONFIGURED ? 'operational' : 'not_configured',
             aiService: aiServiceHealthy ? 'operational' : 'unavailable'
         }
     });
 });
 
+app.use('/geo', geoRoutes);
+
 // ============================================
 // REPORT ENDPOINTS
 // ============================================
+
+/**
+ * POST /api/ai/predict
+ * Quick image-only prediction for immediate UI feedback
+ */
+app.post('/api/ai/predict', upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                error: 'Image file is required'
+            });
+        }
+
+        const validation = validateImage(req.file.buffer, req.file.mimetype);
+        if (!validation.valid) {
+            return res.status(400).json({ error: validation.error });
+        }
+
+        const aiPrediction = await predictBiteType(
+            req.file.buffer,
+            req.file.originalname,
+            req.file.mimetype
+        );
+
+        if (!aiPrediction.success) {
+            return res.status(502).json({
+                success: false,
+                error: aiPrediction.error || 'AI prediction failed',
+                details: aiPrediction
+            });
+        }
+
+        return res.json({
+            success: true,
+            prediction: aiPrediction.prediction,
+            confidence: aiPrediction.confidence,
+            species: aiPrediction.species,
+            severity: aiPrediction.severity,
+            urgency: aiPrediction.urgency || aiPrediction.rawResponse?.urgency || null,
+            wound_analysis: aiPrediction.woundAnalysis || aiPrediction.rawResponse?.wound_analysis || null,
+            wound_detections: aiPrediction.woundDetections || aiPrediction.rawResponse?.wound_detections || [],
+            recommendations: aiPrediction.recommendations || [],
+            detection: aiPrediction.rawResponse?.detection || aiPrediction.rawResponse?.detection_info || null
+        });
+    } catch (error) {
+        console.error('Error in quick AI prediction:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to analyze image',
+            details: error.message
+        });
+    }
+});
 
 /**
  * POST /api/reports/create
@@ -99,6 +158,43 @@ app.get('/api/health', async (req, res) => {
  */
 app.post('/api/reports/create', upload.single('image'), async (req, res) => {
     try {
+        const parseCoordinate = (value) => {
+            const parsed = typeof value === 'number' ? value : parseFloat(value);
+            return Number.isFinite(parsed) ? parsed : null;
+        };
+
+        const parseBoolean = (value) => {
+            if (typeof value === 'boolean') {
+                return value;
+            }
+
+            if (typeof value === 'string') {
+                return value.toLowerCase() === 'true' || value === '1' || value.toLowerCase() === 'yes';
+            }
+
+            return false;
+        };
+
+        const parseJsonField = (value) => {
+            if (!value) {
+                return null;
+            }
+
+            if (typeof value === 'object') {
+                return value;
+            }
+
+            if (typeof value === 'string') {
+                try {
+                    return JSON.parse(value);
+                } catch {
+                    return null;
+                }
+            }
+
+            return null;
+        };
+
         // Validate request
         if (!req.file) {
             return res.status(400).json({ 
@@ -116,19 +212,29 @@ app.post('/api/reports/create', upload.single('image'), async (req, res) => {
         const {
             latitude,
             longitude,
+            lat,
+            lng,
+            gps,
             address_text,
             victim_name,
             victim_age,
             victim_phone,
             symptoms,
             notes,
-            incident_type // Optional: can be overridden by AI
+            incident_type, // Optional: can be overridden by AI
+            animal_present,
+            animalPresent,
+            animal
         } = req.body;
 
+        const gpsObject = parseJsonField(gps);
+        const parsedLatitude = parseCoordinate(latitude ?? lat ?? gpsObject?.lat ?? gpsObject?.latitude);
+        const parsedLongitude = parseCoordinate(longitude ?? lng ?? gpsObject?.lng ?? gpsObject?.longitude);
+
         // Validate required fields
-        if (!latitude || !longitude) {
+        if (parsedLatitude === null || parsedLongitude === null) {
             return res.status(400).json({ 
-                error: 'Location coordinates (latitude, longitude) are required' 
+                error: 'Valid location coordinates are required (latitude/longitude or lat/lng)' 
             });
         }
 
@@ -165,11 +271,13 @@ app.post('/api/reports/create', upload.single('image'), async (req, res) => {
             .from('bite-images')
             .getPublicUrl(filePath);
 
-        // Step 3: Determine incident type and severity
+        // Step 3: Determine incident type, species and severity
         let finalIncidentType = incident_type;
         let severityLevel = 'moderate';
+        let detectedSpecies = null;
 
         if (aiPrediction.success) {
+            detectedSpecies = aiPrediction.species || aiPrediction.prediction || null;
             // Override incident type if AI provides a more specific prediction
             if (aiPrediction.prediction) {
                 finalIncidentType = aiPrediction.prediction.toLowerCase().includes('snake') 
@@ -181,21 +289,46 @@ app.post('/api/reports/create', upload.single('image'), async (req, res) => {
             severityLevel = aiPrediction.severity || 'moderate';
         }
 
+        const normalizedSeverity = ['mild', 'moderate', 'severe', 'critical'].includes(severityLevel)
+            ? severityLevel
+            : 'moderate';
+
+        const incidentTimestamp = new Date().toISOString();
+
+        const geoRisk = assessGeoRisk({
+            latitude: parsedLatitude,
+            longitude: parsedLongitude,
+            incidentType: finalIncidentType || 'snake_bite',
+            severity: normalizedSeverity,
+            animalPresent: parseBoolean(animal_present ?? animalPresent),
+            animal
+        });
+
         // Step 4: Create report in database
         const reportData = {
             incident_type: finalIncidentType || 'snake_bite',
-            species_detected: aiPrediction.success ? aiPrediction.species : null,
+            species_detected: detectedSpecies,
             confidence_score: aiPrediction.success ? aiPrediction.confidence : null,
             image_url: publicUrl,
-            ai_analysis: aiPrediction,
-            latitude: parseFloat(latitude),
-            longitude: parseFloat(longitude),
+            ai_analysis: {
+                ...aiPrediction,
+                geoRisk,
+                geoIncident: {
+                    lat: parsedLatitude,
+                    lng: parsedLongitude,
+                    species: detectedSpecies,
+                    timestamp: incidentTimestamp
+                }
+            },
+            latitude: parsedLatitude,
+            longitude: parsedLongitude,
+            incident_timestamp: incidentTimestamp,
             address_text,
             victim_name,
             victim_age: victim_age ? parseInt(victim_age) : null,
             victim_phone,
             symptoms: typeof symptoms === 'string' ? JSON.parse(symptoms) : symptoms || [],
-            severity_level: severityLevel,
+            severity_level: normalizedSeverity,
             notes
         };
 
@@ -203,8 +336,8 @@ app.post('/api/reports/create', upload.single('image'), async (req, res) => {
 
         // Step 5: Find nearest hospitals
         const nearbyHospitals = await findNearestHospitals(
-            parseFloat(latitude),
-            parseFloat(longitude),
+            parsedLatitude,
+            parsedLongitude,
             finalIncidentType,
             50, // 50km radius
             5   // Top 5 hospitals
@@ -217,6 +350,7 @@ app.post('/api/reports/create', upload.single('image'), async (req, res) => {
             report: {
                 id: report.id,
                 incident_type: report.incident_type,
+                species_detected: report.species_detected,
                 severity_level: report.severity_level,
                 created_at: report.created_at
             },
@@ -226,8 +360,11 @@ app.post('/api/reports/create', upload.single('image'), async (req, res) => {
                 species: aiPrediction.species,
                 recommendations: aiPrediction.recommendations
             } : null,
+            geoRiskScore: geoRisk.geoRiskScore,
+            clusterId: geoRisk.clusterId,
+            geoRisk,
             nearbyHospitals: nearbyHospitals.slice(0, 3), // Top 3 hospitals
-            emergencyInstructions: getEmergencyInstructions(finalIncidentType, severityLevel)
+            emergencyInstructions: getEmergencyInstructions(finalIncidentType, normalizedSeverity)
         });
 
     } catch (error) {

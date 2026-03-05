@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Upload, MapPin, AlertCircle, CheckCircle2, User, Phone, FileText, Loader2 } from 'lucide-react';
 
 const ReportForm = ({ onSubmitSuccess }) => {
@@ -6,6 +6,11 @@ const ReportForm = ({ onSubmitSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
+    const [animalPresent, setAnimalPresent] = useState(false);
+    const [geoSubmitted, setGeoSubmitted] = useState(false);
+    const [classifyingImage, setClassifyingImage] = useState(false);
+    const [quickPrediction, setQuickPrediction] = useState(null);
+    const firstAidRef = useRef(null);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -54,14 +59,54 @@ const ReportForm = ({ onSubmitSuccess }) => {
                 return;
             }
 
+            setError('');
+            setQuickPrediction(null);
+            setClassifyingImage(true);
+
             const reader = new FileReader();
-            reader.onloadend = () => {
-                setFormData({
-                    ...formData,
+            reader.onloadend = async () => {
+                setFormData((prev) => ({
+                    ...prev,
                     image: file,
                     imagePreview: reader.result
-                });
-                setError('');
+                }));
+
+                try {
+                    const predictionForm = new FormData();
+                    predictionForm.append('image', file);
+
+                    const response = await fetch('/api/ai/predict', {
+                        method: 'POST',
+                        body: predictionForm
+                    });
+
+                    const rawBody = await response.text();
+                    let result = {};
+                    if (rawBody) {
+                        try {
+                            result = JSON.parse(rawBody);
+                        } catch {
+                            result = { error: rawBody };
+                        }
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(result.error || result.details || `Image analysis failed (${response.status})`);
+                    }
+
+                    setQuickPrediction(result);
+
+                    if (result.prediction === 'snake_bite' || result.prediction === 'monkey_bite') {
+                        setFormData((prev) => ({
+                            ...prev,
+                            incidentType: result.prediction
+                        }));
+                    }
+                } catch (err) {
+                    setError(err.message || 'Failed to analyze image.');
+                } finally {
+                    setClassifyingImage(false);
+                }
             };
             reader.readAsDataURL(file);
         }
@@ -88,22 +133,23 @@ const ReportForm = ({ onSubmitSuccess }) => {
                         `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
                     );
                     const data = await response.json();
-                    
-                    setFormData({
-                        ...formData,
+
+                    setFormData((prev) => ({
+                        ...prev,
                         latitude,
                         longitude,
                         addressText: data.display_name || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
-                    });
+                    }));
                 } catch (err) {
-                    setFormData({
-                        ...formData,
+                    setFormData((prev) => ({
+                        ...prev,
                         latitude,
                         longitude,
                         addressText: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
-                    });
+                    }));
                 }
-                
+
+                setGeoSubmitted(false);
                 setLoading(false);
             },
             (error) => {
@@ -112,6 +158,67 @@ const ReportForm = ({ onSubmitSuccess }) => {
             },
             { enableHighAccuracy: true, timeout: 10000 }
         );
+    };
+
+    const handleNext = async () => {
+        if (step !== 2) {
+            setStep(step + 1);
+            return;
+        }
+
+        if (geoSubmitted) {
+            setStep(step + 1);
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+
+        try {
+            const incidentResponse = await fetch('/geo/incident', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    type: formData.incidentType,
+                    severity: 'unknown',
+                    lat: formData.latitude,
+                    lng: formData.longitude
+                })
+            });
+
+            if (!incidentResponse.ok) {
+                const body = await incidentResponse.text();
+                throw new Error(body || 'Failed to store incident location');
+            }
+
+            if (animalPresent) {
+                const sightingResponse = await fetch('/geo/sighting', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        animal: formData.incidentType,
+                        lat: formData.latitude,
+                        lng: formData.longitude
+                    })
+                });
+
+                if (!sightingResponse.ok) {
+                    const body = await sightingResponse.text();
+                    throw new Error(body || 'Failed to store animal sighting');
+                }
+            }
+
+            setGeoSubmitted(true);
+            setStep(step + 1);
+        } catch (err) {
+            setError(err.message || 'Failed to update geospatial data');
+        } finally {
+            setLoading(false);
+        }
     };
 
     // Handle symptom toggle
@@ -150,10 +257,18 @@ const ReportForm = ({ onSubmitSuccess }) => {
                 body: submitData
             });
 
-            const result = await response.json();
+            const rawBody = await response.text();
+            let result = {};
+            if (rawBody) {
+                try {
+                    result = JSON.parse(rawBody);
+                } catch {
+                    result = { error: rawBody };
+                }
+            }
 
             if (!response.ok) {
-                throw new Error(result.error || 'Failed to submit report');
+                throw new Error(result.error || result.details || `Failed to submit report (${response.status})`);
             }
 
             setSuccess(true);
@@ -182,6 +297,29 @@ const ReportForm = ({ onSubmitSuccess }) => {
         }
     };
 
+    const getUrgencyBadgeClass = (urgency) => {
+        switch ((urgency || '').toLowerCase()) {
+            case 'immediate':
+                return 'bg-red-600/90 text-white';
+            case 'urgent':
+                return 'bg-orange-500/90 text-white';
+            case 'monitor_and_consult':
+                return 'bg-yellow-500/90 text-black';
+            default:
+                return 'bg-moss-600/90 text-white';
+        }
+    };
+
+    useEffect(() => {
+        if (step === 1 && quickPrediction?.urgency === 'immediate' && firstAidRef.current) {
+            firstAidRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, [quickPrediction, step]);
+
+    useEffect(() => {
+        setGeoSubmitted(false);
+    }, [animalPresent, formData.latitude, formData.longitude, formData.incidentType]);
+
     // Success screen
     if (success) {
         return (
@@ -195,6 +333,8 @@ const ReportForm = ({ onSubmitSuccess }) => {
                     onClick={() => {
                         setSuccess(false);
                         setStep(1);
+                        setAnimalPresent(false);
+                        setGeoSubmitted(false);
                         setFormData({
                             incidentType: 'snake_bite',
                             image: null,
@@ -325,6 +465,90 @@ const ReportForm = ({ onSubmitSuccess }) => {
                                 </label>
                             </div>
                         </div>
+
+                        {classifyingImage && (
+                            <div className="alert-success flex items-center gap-2">
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                <span>Analyzing image and classifying bite type...</span>
+                            </div>
+                        )}
+
+                        {quickPrediction && !classifyingImage && (
+                            <div className="alert-success">
+                                <div className="flex items-start gap-2">
+                                    <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                        <p className="font-semibold mb-1">Image classified successfully</p>
+                                        <p className="text-sm opacity-90">
+                                            Prediction: {quickPrediction.prediction || 'N/A'}
+                                            {quickPrediction.species ? ` • Species: ${quickPrediction.species}` : ''}
+                                        </p>
+                                        {typeof quickPrediction.confidence === 'number' && (
+                                            <p className="text-xs opacity-75 mt-1">
+                                                Confidence: {(quickPrediction.confidence * 100).toFixed(1)}%
+                                            </p>
+                                        )}
+                                        {quickPrediction.severity && (
+                                            <p className="text-xs opacity-80 mt-1">
+                                                Severity: {quickPrediction.severity}
+                                            </p>
+                                        )}
+                                        {quickPrediction.urgency && (
+                                            <div className="mt-2 inline-flex items-center gap-2">
+                                                <span className="text-xs opacity-80">Urgency:</span>
+                                                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getUrgencyBadgeClass(quickPrediction.urgency)}`}>
+                                                    {quickPrediction.urgency.replaceAll('_', ' ')}
+                                                </span>
+                                            </div>
+                                        )}
+                                        {quickPrediction.wound_analysis && (
+                                            <p className="text-xs opacity-80 mt-1">
+                                                Swelling: {quickPrediction.wound_analysis.swelling_grade || 'N/A'}
+                                                {' • '}Bleeding signal: {Math.round((quickPrediction.wound_analysis.bleeding_likelihood || 0) * 100)}%
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {quickPrediction?.urgency === 'immediate' && (
+                            <div className="alert-danger flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                                    <span className="font-semibold">
+                                        🚨 Immediate Action Required – Follow first aid steps below.
+                                    </span>
+                                </div>
+                                <a
+                                    href="tel:108"
+                                    className="btn-danger whitespace-nowrap"
+                                >
+                                    Call Emergency (108)
+                                </a>
+                            </div>
+                        )}
+
+                        {quickPrediction?.recommendations?.length > 0 && (
+                            <div
+                                ref={firstAidRef}
+                                className={`glass-card p-4 border border-red-500/40 ${
+                                    quickPrediction?.urgency === 'immediate'
+                                        ? 'sticky bottom-3 z-20 md:static'
+                                        : ''
+                                }`}
+                            >
+                                <h4 className="text-white font-semibold mb-2">Immediate First-Aid Guidance</h4>
+                                <ul className="space-y-2 text-sm text-gray-200">
+                                    {quickPrediction.recommendations.slice(0, 6).map((tip, idx) => (
+                                        <li key={idx} className="flex items-start gap-2">
+                                            <span className="text-moss-400 mt-0.5">•</span>
+                                            <span>{tip}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -360,6 +584,8 @@ const ReportForm = ({ onSubmitSuccess }) => {
                                     <div>
                                         <p className="font-semibold mb-1">Location Captured</p>
                                         <p className="text-sm opacity-90">{formData.addressText}</p>
+                                        <p className="text-xs opacity-75 mt-1">📍 Latitude: {formData.latitude.toFixed(6)}</p>
+                                        <p className="text-xs opacity-75">📍 Longitude: {formData.longitude.toFixed(6)}</p>
                                         <p className="text-xs opacity-75 mt-1">
                                             {formData.latitude.toFixed(6)}, {formData.longitude.toFixed(6)}
                                         </p>
@@ -367,6 +593,34 @@ const ReportForm = ({ onSubmitSuccess }) => {
                                 </div>
                             </div>
                         )}
+
+                        <div>
+                            <p className="form-label">⚠ Is the animal still nearby?</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setAnimalPresent(true)}
+                                    className={`p-3 rounded-lg border transition-all duration-300 ${
+                                        animalPresent
+                                            ? 'border-moss-500 bg-moss-500/20 text-white'
+                                            : 'border-white/20 bg-white/5 text-gray-300'
+                                    }`}
+                                >
+                                    Yes
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setAnimalPresent(false)}
+                                    className={`p-3 rounded-lg border transition-all duration-300 ${
+                                        !animalPresent
+                                            ? 'border-moss-500 bg-moss-500/20 text-white'
+                                            : 'border-white/20 bg-white/5 text-gray-300'
+                                    }`}
+                                >
+                                    No
+                                </button>
+                            </div>
+                        </div>
 
                         <div>
                             <label className="form-label">Address Details (Optional)</label>
@@ -492,11 +746,11 @@ const ReportForm = ({ onSubmitSuccess }) => {
                     {step < 4 ? (
                         <button
                             type="button"
-                            onClick={() => setStep(step + 1)}
+                            onClick={handleNext}
                             className="btn-primary flex-1"
-                            disabled={!canProceedToNextStep()}
+                            disabled={!canProceedToNextStep() || loading}
                         >
-                            Next
+                            {loading && step === 2 ? 'Saving...' : 'Next'}
                         </button>
                     ) : (
                         <button

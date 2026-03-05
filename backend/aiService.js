@@ -1,5 +1,7 @@
 import axios from 'axios';
 import FormData from 'form-data';
+import { incidents, sightings } from './geospatial/geoStore.js';
+import { getClusters } from './geospatial/clustering.js';
 
 /**
  * AI Image Prediction Service Bridge
@@ -7,6 +9,114 @@ import FormData from 'form-data';
  */
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000/predict';
+
+function toRadians(value) {
+    return (value * Math.PI) / 180;
+}
+
+function getDistanceKm(lat1, lng1, lat2, lng2) {
+    const earthRadiusKm = 6371;
+    const dLat = toRadians(lat2 - lat1);
+    const dLng = toRadians(lng2 - lng1);
+
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return earthRadiusKm * c;
+}
+
+function getSeverityWeight(severity) {
+    const severityMap = {
+        mild: 0.25,
+        moderate: 0.5,
+        severe: 0.75,
+        critical: 1
+    };
+
+    return severityMap[severity] ?? 0.5;
+}
+
+export function assessGeoRisk({
+    latitude,
+    longitude,
+    incidentType,
+    severity,
+    animalPresent,
+    animal
+}) {
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return {
+            geoRiskScore: 0,
+            clusterId: null,
+            nearbyIncidentCount: 0,
+            clusterCount: 0
+        };
+    }
+
+    incidents.push({
+        lat,
+        lng,
+        type: incidentType,
+        severity,
+        time: Date.now()
+    });
+
+    if (animalPresent) {
+        sightings.push({
+            lat,
+            lng,
+            animal: animal || incidentType || 'unknown'
+        });
+    }
+
+    const clusters = getClusters();
+
+    let nearestCluster = null;
+    let nearestClusterIndex = -1;
+    let nearestDistanceKm = Number.POSITIVE_INFINITY;
+
+    clusters.forEach((cluster, index) => {
+        const distanceKm = getDistanceKm(lat, lng, cluster.lat, cluster.lng);
+        if (distanceKm < nearestDistanceKm) {
+            nearestDistanceKm = distanceKm;
+            nearestCluster = cluster;
+            nearestClusterIndex = index;
+        }
+    });
+
+    const clusterDistanceThresholdKm = 2;
+    const clusterId =
+        nearestCluster && nearestDistanceKm <= clusterDistanceThresholdKm
+            ? `cluster-${nearestClusterIndex + 1}`
+            : null;
+
+    const nearbyIncidentCount = incidents.filter((incident) => {
+        const distanceKm = getDistanceKm(lat, lng, incident.lat, incident.lng);
+        return distanceKm <= 2;
+    }).length;
+
+    const incidentDensityFactor = Math.min(nearbyIncidentCount / 8, 1);
+    const clusterDensityFactor = nearestCluster ? Math.min(nearestCluster.count / 10, 1) : 0;
+    const severityWeight = getSeverityWeight(severity);
+
+    const rawRisk =
+        0.45 * incidentDensityFactor +
+        0.35 * clusterDensityFactor +
+        0.2 * severityWeight;
+
+    return {
+        geoRiskScore: Math.round(rawRisk * 100),
+        clusterId,
+        nearbyIncidentCount,
+        clusterCount: clusters.length
+    };
+}
 
 /**
  * Send image to Python AI service for prediction
@@ -43,6 +153,9 @@ export async function predictBiteType(imageBuffer, filename, mimetype) {
             details: response.data.details || null,
             recommendations: response.data.recommendations || [],
             severity: response.data.severity || 'unknown',
+            urgency: response.data.urgency || null,
+            woundAnalysis: response.data.wound_analysis || null,
+            woundDetections: response.data.wound_detections || [],
             rawResponse: response.data
         };
 
@@ -151,5 +264,6 @@ export default {
     predictBiteType,
     checkAIServiceHealth,
     getSupportedImageFormats,
-    validateImage
+    validateImage,
+    assessGeoRisk
 };
