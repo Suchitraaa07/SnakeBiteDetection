@@ -46,6 +46,76 @@ SylvanGuard is a comprehensive emergency response platform designed to save live
 - **FastAPI** - API framework
 - **CNN** - Convolutional Neural Network for image classification
 
+#### Python Backend API
+
+The AI service exposes an endpoint that receives an image and returns
+snake detection results. It loads two PyTorch models at startup
+from the `models/` directory:
+
+- `snake_species_model.pt` (classification/species) —
+  legacy code will also accept `snake_model.pt` as a fallback
+- `snake_count_model.pt` (regression/count)
+
+Make sure both files are placed in `models/` before starting the server; otherwise
+you’ll see a "Models not loaded" error when calling `/predict`.
+Key modules:
+
+- `load_models.py` – handles one‑time loading and caching of models
+- `predict_species.py` – runs inference for species and presence
+- `predict_count.py` – estimates the number of snakes
+- `utils/image_preprocessing.py` – converts raw bytes to PIL images
+- `api.py` – FastAPI application exposing `/predict` endpoint
+
+The response format is:
+
+```json
+{
+  "snake_detected": true,
+  "species": "Venomous",
+  "confidence": 0.87,
+  "snake_count": 2
+}
+```
+
+Run the Python AI service with Uvicorn:
+
+```bash
+uvicorn api:app --reload --host 0.0.0.0 --port 8000
+```
+
+You can verify it's up by visiting `http://localhost:8000/health` or using `curl`.
+
+> **Note:** the Node/Express backend forwards images to this service, so it must
+> be running and accessible on port 8000 (or whatever `AI_SERVICE_URL` you
+> configure in `backend/.env`). If you see "Models not loaded" or connection
+> refused errors, restart the AI service and ensure the model files exist.
++
++### Supabase upload troubleshooting
++
++If image submissions keep failing with "Failed to upload image":
++
++1. Confirm the backend has valid Supabase credentials. Copy `.env.example` to
++   `backend/.env` and set `SUPABASE_URL`/`SUPABASE_ANON_KEY` accordingly. The
++   server will throw an error at startup if they are missing.
++2. Ensure a storage bucket named `bite-images` exists in your Supabase project
++   (or change the name in `backend/server.js`). The bucket must allow public
++   read or have appropriate policies – a 403 error will be logged otherwise.
++3. Check the backend console log when you submit a report; it now prints the
++   full Supabase error object and returns it to the frontend for easier
++   debugging.
++4. CORS is typically not an issue since upload happens server‑side, but make
++   sure your Supabase project isn't blocking uploads due to size limits or
++   invalid MIME types.
++5. You can manually test uploading by running curl against the Express endpoint
++   and examining the JSON response.
++
+You can verify it's up by visiting `http://localhost:8000/health` or using `curl`.
+
+> **Note:** the Node/Express backend forwards images to this service, so it must
+> be running and accessible on port 8000 (or whatever `AI_SERVICE_URL` you
+> configure in `backend/.env`). If you see "Models not loaded" or connection
+> refused errors, restart the AI service and ensure the model files exist.
+
 ---
 
 ## 📂 Project Structure

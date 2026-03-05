@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Shield, AlertTriangle, Map, Building2, Menu, X, Github, Info } from 'lucide-react';
+import { Shield, AlertTriangle, Map, Building2, Github, Info, Camera } from 'lucide-react';
 import ReportForm from './components/ReportForm';
 import HeatMap from './components/HeatMap';
 import HospitalLocator from './components/HospitalLocator';
+import ImageAnalyzer from './components/ImageAnalyzer';
 
 function App() {
   console.log('✅ App component loaded');
@@ -16,6 +17,7 @@ function App() {
 
   const tabs = [
     { id: 'report', name: 'Report Bite', icon: AlertTriangle },
+    { id: 'analyzer', name: 'Image Analyzer', icon: Camera },
     { id: 'map', name: 'Heatmap', icon: Map },
     { id: 'hospitals', name: 'Find Hospitals', icon: Building2 }
   ];
@@ -96,20 +98,32 @@ function App() {
 
       {/* Main Content */}
       <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 16px' }}>
-        {/* Success Message */}
-        {reportResult && activeTab === 'report' && (
-          <div style={{
-            marginBottom: '24px',
-            padding: '16px',
-            backgroundColor: 'rgba(21, 128, 61, 0.2)',
-            border: '1px solid rgba(132, 204, 22, 0.5)',
-            borderRadius: '12px',
-            display: 'flex',
-            gap: '8px'
-          }}>
+        {/* Success Message - show after submission across tabs */}
+        {reportResult && (
+          <div
+            style={{
+              marginBottom: '24px',
+              padding: '16px',
+              backgroundColor: 'rgba(21, 128, 61, 0.2)',
+              border: '1px solid rgba(132, 204, 22, 0.5)',
+              borderRadius: '12px',
+              display: 'flex',
+              gap: '8px'
+            }}
+          >
             <Info size={20} style={{ marginTop: '4px', flexShrink: 0 }} />
             <div>
               <p style={{ fontWeight: '600', margin: '0 0 4px 0' }}>Report Submitted Successfully!</p>
+              {reportResult.aiAnalysis && (
+                <p style={{ fontSize: '14px', opacity: 0.9, margin: '0 0 4px 0' }}>
+                  Model prediction: <strong>{reportResult.aiAnalysis.prediction || 'unknown'}</strong>
+                  {reportResult.aiAnalysis.species &&
+                    ` (${reportResult.aiAnalysis.species})`}<br />
+                  Confidence: <strong>{(reportResult.aiAnalysis.confidence ?? 0).toFixed(2)}</strong>
+                  {reportResult.aiAnalysis.snake_count != null &&
+                    ` • Count: ${reportResult.aiAnalysis.snake_count}`}
+                </p>
+              )}
               <p style={{ fontSize: '14px', opacity: 0.9, margin: '0' }}>
                 {reportResult.nearbyHospitals?.length > 0 
                   ? `Found ${reportResult.nearbyHospitals.length} nearby hospitals with anti-venom.`
@@ -125,6 +139,8 @@ function App() {
             <ReportForm onSubmitSuccess={handleReportSuccess} />
           </div>
         )}
+
+        {activeTab === 'analyzer' && <ImageAnalyzer />}
 
         {activeTab === 'map' && <HeatMap />}
 

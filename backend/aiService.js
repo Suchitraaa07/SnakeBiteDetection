@@ -40,6 +40,8 @@ export async function predictBiteType(imageBuffer, filename, mimetype) {
             prediction: response.data.prediction || response.data.class,
             confidence: response.data.confidence || response.data.probability,
             species: response.data.species || null,
+            // include snake count if returned by Python service
+            snake_count: response.data.snake_count != null ? response.data.snake_count : null,
             details: response.data.details || null,
             recommendations: response.data.recommendations || [],
             severity: response.data.severity || 'unknown',

@@ -10,6 +10,14 @@ node_modules/
 dist/
 build/
 
+<<<<<<< HEAD
+=======
+#dataset
+data/
+*.zip
+__pycache__/
+
+>>>>>>> 1f5d2b93 (Clean project commit)
 # Logs
 *.log
 npm-debug.log*
@@ -49,3 +57,14 @@ coverage/
 # Cache
 .cache/
 .parcel-cache/
+
+.venv/
+venv/
+node_modules/
+__pycache__/
+*.pyc
+
+#models
+*.pt
+*.pth
+*.h5

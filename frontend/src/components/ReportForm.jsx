@@ -6,6 +6,10 @@ const ReportForm = ({ onSubmitSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
+<<<<<<< HEAD
+=======
+    const [aiResult, setAiResult] = useState(null); // store prediction from backend
+>>>>>>> 1f5d2b93 (Clean project commit)
 
     // Form state
     const [formData, setFormData] = useState({
@@ -124,9 +128,27 @@ const ReportForm = ({ onSubmitSuccess }) => {
         });
     };
 
+<<<<<<< HEAD
     // Handle form submission
     const handleSubmit = async (e) => {
         e.preventDefault();
+=======
+    // Prevent accidental submit (e.g., pressing Enter in inputs)
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+        }
+    };
+
+    // Handle form submission (triggered only from explicit button click)
+    const handleSubmit = async () => {
+        // Extra safety: ensure all previous required steps are valid
+        if (!formData.image || !formData.latitude || !formData.longitude || formData.symptoms.length === 0) {
+            setError('Please complete all required steps before submitting.');
+            return;
+        }
+
+>>>>>>> 1f5d2b93 (Clean project commit)
         setLoading(true);
         setError('');
 
@@ -153,10 +175,21 @@ const ReportForm = ({ onSubmitSuccess }) => {
             const result = await response.json();
 
             if (!response.ok) {
+<<<<<<< HEAD
                 throw new Error(result.error || 'Failed to submit report');
             }
 
             setSuccess(true);
+=======
+                // construct a more informative error message
+                const msg = result.error || 'Failed to submit report';
+                const details = result.details || result.supabaseError || '';
+                throw new Error(details ? `${msg}: ${details}` : msg);
+            }
+
+            setSuccess(true);
+            setAiResult(result.aiAnalysis || null);
+>>>>>>> 1f5d2b93 (Clean project commit)
             if (onSubmitSuccess) {
                 onSubmitSuccess(result);
             }
@@ -188,6 +221,17 @@ const ReportForm = ({ onSubmitSuccess }) => {
             <div className="glass-card p-8 text-center">
                 <CheckCircle2 className="w-20 h-20 text-moss-400 mx-auto mb-4 animate-float" />
                 <h2 className="text-3xl font-bold text-white mb-3">Report Submitted Successfully!</h2>
+<<<<<<< HEAD
+=======
+                {aiResult && (
+                    <p className="text-gray-200 mb-4">
+                        <strong>AI Prediction:</strong> {aiResult.prediction || 'unknown'}
+                        {aiResult.species ? ` (${aiResult.species})` : ''} <br />
+                        <strong>Confidence:</strong> {(aiResult.confidence ?? 0).toFixed(2)}
+                        {aiResult.snake_count != null ? ` • Count: ${aiResult.snake_count}` : ''}
+                    </p>
+                )}
+>>>>>>> 1f5d2b93 (Clean project commit)
                 <p className="text-gray-300 mb-6">
                     Your emergency report has been received. Nearby hospitals have been notified.
                 </p>
@@ -251,7 +295,15 @@ const ReportForm = ({ onSubmitSuccess }) => {
                 </div>
             )}
 
+<<<<<<< HEAD
             <form onSubmit={handleSubmit}>
+=======
+            {/* We deliberately prevent native form submission and drive submit from button click only */}
+            <form
+                onSubmit={(e) => e.preventDefault()}
+                onKeyDown={handleKeyDown}
+            >
+>>>>>>> 1f5d2b93 (Clean project commit)
                 {/* Step 1: Incident Type & Image Upload */}
                 {step === 1 && (
                     <div className="space-y-6">
@@ -500,7 +552,12 @@ const ReportForm = ({ onSubmitSuccess }) => {
                         </button>
                     ) : (
                         <button
+<<<<<<< HEAD
                             type="submit"
+=======
+                            type="button"
+                            onClick={handleSubmit}
+>>>>>>> 1f5d2b93 (Clean project commit)
                             className="btn-danger flex-1 flex items-center justify-center gap-2"
                             disabled={loading}
                         >

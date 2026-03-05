@@ -4,13 +4,21 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Validate environment variables
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
-    throw new Error('Missing Supabase credentials. Please check your .env file.');
+if (!process.env.SUPABASE_URL) {
+    throw new Error('Missing Supabase URL. Please check your .env file.');
 }
 
-// Initialize Supabase client
+// Prefer service role key for server-side operations; fall back to anon key
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+let supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseKey) {
+    throw new Error('Missing Supabase API key. Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY in your .env.');
+}
+
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_ANON_KEY) {
+    console.warn('Warning: Using anon key for server-side API. Row-level security policies may block writes.');
+}
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: {

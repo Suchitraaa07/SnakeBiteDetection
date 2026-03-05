@@ -94,6 +94,61 @@ app.get('/api/health', async (req, res) => {
 // ============================================
 
 /**
+<<<<<<< HEAD
+=======
+ * POST /api/ai/predict
+ * Lightweight endpoint to run model prediction on an uploaded image
+ * without creating a full report or writing to the database.
+ */
+app.post('/api/ai/predict', upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                error: 'Image file is required'
+            });
+        }
+
+        const validation = validateImage(req.file.buffer, req.file.mimetype);
+        if (!validation.valid) {
+            return res.status(400).json({ error: validation.error });
+        }
+
+        console.log('Running standalone AI prediction for uploaded image...');
+        const aiPrediction = await predictBiteType(
+            req.file.buffer,
+            req.file.originalname,
+            req.file.mimetype
+        );
+
+        if (!aiPrediction.success) {
+            return res.status(502).json({
+                error: aiPrediction.error || 'AI prediction failed',
+                details: aiPrediction
+            });
+        }
+
+        return res.json({
+            success: true,
+            aiAnalysis: {
+                prediction: aiPrediction.prediction,
+                confidence: aiPrediction.confidence,
+                species: aiPrediction.species,
+                snake_count: aiPrediction.snake_count,
+                recommendations: aiPrediction.recommendations,
+                severity: aiPrediction.severity
+            }
+        });
+    } catch (error) {
+        console.error('Error in /api/ai/predict:', error);
+        return res.status(500).json({
+            error: 'Failed to run AI prediction',
+            details: error.message
+        });
+    }
+});
+
+/**
+>>>>>>> 1f5d2b93 (Clean project commit)
  * POST /api/reports/create
  * Create a new bite incident report with image analysis
  */
@@ -154,9 +209,11 @@ app.post('/api/reports/create', upload.single('image'), async (req, res) => {
 
         if (uploadError) {
             console.error('Image upload error:', uploadError);
+            // include the full error object for easier debugging during development
             return res.status(500).json({ 
                 error: 'Failed to upload image',
-                details: uploadError.message 
+                details: uploadError.message,
+                supabaseError: uploadError
             });
         }
 
@@ -186,6 +243,7 @@ app.post('/api/reports/create', upload.single('image'), async (req, res) => {
             incident_type: finalIncidentType || 'snake_bite',
             species_detected: aiPrediction.success ? aiPrediction.species : null,
             confidence_score: aiPrediction.success ? aiPrediction.confidence : null,
+            snake_count: aiPrediction.success ? aiPrediction.snake_count : null,
             image_url: publicUrl,
             ai_analysis: aiPrediction,
             latitude: parseFloat(latitude),
@@ -224,6 +282,7 @@ app.post('/api/reports/create', upload.single('image'), async (req, res) => {
                 prediction: aiPrediction.prediction,
                 confidence: aiPrediction.confidence,
                 species: aiPrediction.species,
+                snake_count: aiPrediction.snake_count,
                 recommendations: aiPrediction.recommendations
             } : null,
             nearbyHospitals: nearbyHospitals.slice(0, 3), // Top 3 hospitals
