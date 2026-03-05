@@ -1,0 +1,28 @@
+{
+  "name": "sylvanguard",
+  "version": "1.0.0",
+  "description": "Health emergency system for snake and monkey bite detection",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\""
+  },
+  "keywords": [
+    "health",
+    "emergency",
+    "snake-bite",
+    "monkey-bite",
+    "detection"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

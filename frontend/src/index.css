@@ -1,0 +1,196 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Deep Forest Theme - Global Styles */
+
+@layer base {
+  body {
+    @apply bg-forest-950 text-gray-100;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  /* Glassmorphism Card */
+  .glass-card {
+    @apply bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-glass;
+  }
+
+  .glass-card-sm {
+    @apply bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 shadow-glass-sm;
+  }
+
+  /* Button Styles */
+  .btn-primary {
+    @apply px-6 py-3 bg-moss-600 text-white font-semibold rounded-xl 
+           transition-all duration-300 shadow-lg
+           focus:outline-none focus:ring-4 focus:ring-moss-500/50;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    @apply bg-moss-700 shadow-2xl scale-105 -translate-y-1;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 bg-white/10 text-white font-semibold rounded-xl 
+           transition-all duration-300 backdrop-blur-sm border border-white/20
+           focus:outline-none focus:ring-4 focus:ring-white/30;
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    @apply bg-white/20 border-white/40 shadow-lg -translate-y-1;
+  }
+
+  .btn-danger {
+    @apply px-6 py-3 bg-danger-500 text-white font-semibold rounded-xl 
+           transition-all duration-300 shadow-lg
+           focus:outline-none focus:ring-4 focus:ring-danger-500/50;
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    @apply bg-danger-600 shadow-2xl scale-105 -translate-y-1;
+  }
+
+  /* Button Active States */
+  .btn-primary:active:not(:disabled) {
+    @apply scale-95;
+  }
+
+  .btn-secondary:active:not(:disabled) {
+    @apply scale-95;
+  }
+
+  .btn-danger:active:not(:disabled) {
+    @apply scale-95;
+  }
+
+  /* Button Disabled State */
+  .btn-primary:disabled,
+  .btn-secondary:disabled,
+  .btn-danger:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  /* Input Styles */
+  .input-field {
+    @apply w-full px-4 py-3 bg-white/5 backdrop-blur-sm border border-white/20 rounded-xl
+           text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-moss-500 
+           focus:border-transparent transition-all duration-300;
+  }
+
+  .input-field:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  /* Form Labels */
+  .form-label {
+    @apply block text-sm font-semibold text-gray-200 mb-2;
+  }
+
+  /* Alert Styles */
+  .alert-danger {
+    @apply bg-danger-500/20 border border-danger-500/50 text-danger-200 px-4 py-3 rounded-xl backdrop-blur-sm;
+  }
+
+  .alert-success {
+    @apply bg-moss-500/20 border border-moss-500/50 text-moss-200 px-4 py-3 rounded-xl backdrop-blur-sm;
+  }
+
+  .alert-warning {
+    @apply bg-earth-500/20 border border-earth-500/50 text-earth-200 px-4 py-3 rounded-xl backdrop-blur-sm;
+  }
+
+  .alert-info {
+    @apply bg-forest-500/20 border border-forest-500/50 text-forest-200 px-4 py-3 rounded-xl backdrop-blur-sm;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-moss-400 to-forest-400 bg-clip-text text-transparent;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-forest-900/50;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-moss-600/50 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-moss-600;
+}
+
+/* Leaflet Map Custom Styles */
+.leaflet-container {
+  @apply rounded-2xl shadow-glass;
+  background: rgba(5, 46, 22, 0.8);
+}
+
+.leaflet-popup-content-wrapper {
+  @apply bg-forest-900/95 backdrop-blur-md text-white rounded-xl border border-white/20;
+}
+
+.leaflet-popup-tip {
+  @apply bg-forest-900/95;
+}
+
+/* Loading Animation */
+.loading-spinner {
+  border: 3px solid rgba(132, 204, 22, 0.2);
+  border-radius: 50%;
+  border-top-color: #84cc16;
+  width: 40px;
+  height: 40px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Pulsing Dot Animation */
+.pulse-dot {
+  animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.1);
+  }
+}
+/* Fade In Animation */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
