@@ -68,13 +68,11 @@ fi
 cd ..
 echo ""
 
-# Setup Python virtual environment
+# Setup Python virtual environment (project root)
 echo "========================================"
 echo "Setting up Python AI service..."
 echo "========================================"
 if command -v python3 &> /dev/null; then
-    cd python-ai-service
-    
     echo "Creating virtual environment..."
     python3 -m venv venv
     
@@ -85,7 +83,6 @@ if command -v python3 &> /dev/null; then
     pip install -r requirements.txt
     
     deactivate
-    cd ..
     echo "[OK] Python AI service setup complete"
 else
     echo "[SKIP] Skipping Python setup (Python not found)"
@@ -118,9 +115,8 @@ echo "3. Create 'bite-images' bucket in Supabase Storage"
 echo "4. Start the development servers:"
 echo ""
 echo "   Terminal 1:  ./start-dev.sh"
-echo "   Terminal 2:  cd python-ai-service"
-echo "                source venv/bin/activate"
-echo "                python main.py"
+echo "   Terminal 2:  source venv/bin/activate"
+echo "                uvicorn api:app --reload --host 0.0.0.0 --port 8000"
 echo ""
 echo "See SETUP_GUIDE.md for detailed instructions."
 echo ""

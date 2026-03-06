@@ -13,6 +13,20 @@ _transform = transforms.Compose([
 DEFAULT_CLASSES = ["Non Venomous", "Venomous"]
 
 
+def _resolve_classes(model: torch.nn.Module, classes):
+    """Resolve class labels from argument, model metadata, or defaults."""
+    if classes:
+        return list(classes)
+
+    model_names = getattr(model, "names", None)
+    if isinstance(model_names, dict) and model_names:
+        return [model_names[k] for k in sorted(model_names.keys())]
+    if isinstance(model_names, (list, tuple)) and model_names:
+        return list(model_names)
+
+    return DEFAULT_CLASSES
+
+
 def predict_species(image: Image.Image, model: torch.nn.Module, classes=None):
     """Run inference on an image to determine presence and species of snake.
 
@@ -24,8 +38,7 @@ def predict_species(image: Image.Image, model: torch.nn.Module, classes=None):
     Returns:
         dict with keys snake_detected (bool), species (str), confidence (float).
     """
-    if classes is None:
-        classes = DEFAULT_CLASSES
+    classes = _resolve_classes(model, classes)
 
     # apply transform and batch dimension
     tensor = _transform(image).unsqueeze(0)
@@ -39,15 +52,29 @@ def predict_species(image: Image.Image, model: torch.nn.Module, classes=None):
         # some models return a tuple/list like (logits,); take the first element
         if isinstance(output, (list, tuple)):
             output = output[0]
-        # Reduce extra spatial / anchor dimensions so we end up with
-        # shape [batch, num_classes] before softmax.
-        if output.dim() > 2:
-            reduce_dims = tuple(range(1, output.dim() - 1))
-            output = output.mean(dim=reduce_dims)
-        probs = torch.softmax(output, dim=1)
-        confidence, idx = torch.max(probs, dim=1)
-        confidence = confidence.item()
-        species_name = classes[idx.item()]
+
+        model_nc = int(getattr(model, "nc", len(classes)) or len(classes))
+        # YOLO detection head output: [B, 4 + nc, N]
+        if output.dim() == 3 and output.shape[1] >= 4 + model_nc:
+            class_logits = output[:, 4:4 + model_nc, :]
+            class_probs = torch.sigmoid(class_logits)
+            anchor_conf, anchor_class_idx = class_probs.max(dim=1)  # [B, N], [B, N]
+            best_conf, best_anchor_idx = anchor_conf.max(dim=1)     # [B], [B]
+            idx = anchor_class_idx.gather(1, best_anchor_idx.unsqueeze(1)).squeeze(1)
+            confidence = float(best_conf.item())
+            class_idx = int(idx.item())
+        else:
+            # Classification-like output fallback.
+            if output.dim() > 2:
+                output = output.flatten(1)
+            probs = torch.softmax(output, dim=1)
+            confidence_t, idx = torch.max(probs, dim=1)
+            confidence = float(confidence_t.item())
+            class_idx = int(idx.item())
+
+        if class_idx < 0 or class_idx >= len(classes):
+            class_idx = max(0, min(class_idx, len(classes) - 1))
+        species_name = classes[class_idx]
 
     snake_detected = confidence > 0.5 and species_name.lower() != "non venomous"
 

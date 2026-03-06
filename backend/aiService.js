@@ -35,17 +35,26 @@ export async function predictBiteType(imageBuffer, filename, mimetype) {
             maxBodyLength: Infinity
         });
 
+        const raw = response.data || {};
+        const normalizedPrediction =
+            raw.prediction ??
+            raw.class ??
+            (raw.species ? `Snake (${raw.species})` : null) ??
+            (typeof raw.snake_detected === 'boolean'
+                ? (raw.snake_detected ? 'Snake Detected' : 'No Snake Detected')
+                : null);
+
         return {
             success: true,
-            prediction: response.data.prediction || response.data.class,
-            confidence: response.data.confidence || response.data.probability,
-            species: response.data.species || null,
+            prediction: normalizedPrediction,
+            confidence: raw.confidence ?? raw.probability ?? null,
+            species: raw.species ?? null,
             // include snake count if returned by Python service
-            snake_count: response.data.snake_count != null ? response.data.snake_count : null,
-            details: response.data.details || null,
-            recommendations: response.data.recommendations || [],
-            severity: response.data.severity || 'unknown',
-            rawResponse: response.data
+            snake_count: raw.snake_count != null ? raw.snake_count : null,
+            details: raw.details || null,
+            recommendations: raw.recommendations || [],
+            severity: raw.severity || 'unknown',
+            rawResponse: raw
         };
 
     } catch (error) {
