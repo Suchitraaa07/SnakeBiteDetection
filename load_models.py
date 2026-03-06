@@ -11,7 +11,7 @@ _species_model = None
 _count_model = None
 
 MODELS_DIR = Path("models")
-SPECIES_MODEL_PATH = MODELS_DIR / "snake_species_model.pt"
+SPECIES_MODEL_PATH = MODELS_DIR / "snake_model.pth"
 COUNT_MODEL_PATH = MODELS_DIR / "snake_count_model.pt"
 
 
@@ -19,22 +19,17 @@ def load_models(device: torch.device = torch.device("cpu")):
     global _species_model, _count_model
 
     if _species_model is None:
-        path = SPECIES_MODEL_PATH
-
-        if not path.exists():
-            alt = MODELS_DIR / "snake_model.pt"
-            if alt.exists():
-                path = alt
-                print(f"Warning: using fallback species model {alt.name}")
-
+        path = MODELS_DIR / "snake_model.pth"
         if not path.exists():
             raise FileNotFoundError(
-                f"Species model not found. Expected {SPECIES_MODEL_PATH}"
+                f"Species model not found. Expected {path}"
             )
-
-        ckpt = torch.load(path, map_location=device, weights_only=False)
-
-        model = ckpt.get("model") if isinstance(ckpt, dict) else ckpt
+        from torchvision import models
+        import torch.nn as nn
+        model = models.mobilenet_v3_small(weights=None)
+        model.classifier[3] = nn.Linear(1024, 2)
+        state_dict = torch.load(path, map_location=device)
+        model.load_state_dict(state_dict)
         model.eval()
         _species_model = model
 
