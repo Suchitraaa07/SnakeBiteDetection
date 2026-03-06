@@ -108,9 +108,6 @@ AI_SERVICE_URL=http://localhost:8000/predict
 ### 4. Setup Python AI Service
 
 ```bash
-# Navigate to Python AI service directory
-cd python-ai-service
-
 # Create virtual environment
 python -m venv venv
 
@@ -124,6 +121,11 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 ```
+
+Place model files in `models/`:
+
+- `snake_species_model.pt` (or fallback `snake_model.pt`)
+- `snake_count_model.pt` (optional)
 
 ---
 
@@ -140,10 +142,9 @@ npm run dev
 
 ```bash
 # Terminal 2: Start Python AI service
-cd python-ai-service
 venv\Scripts\activate  # Windows
 # or: source venv/bin/activate  # macOS/Linux
-python main.py
+uvicorn api:app --reload --host 0.0.0.0 --port 8000
 ```
 
 #### Option B: Start Individually
@@ -158,9 +159,8 @@ cd frontend
 npm run dev
 
 # Terminal 3: Python AI Service
-cd python-ai-service
 venv\Scripts\activate  # Windows
-python main.py
+uvicorn api:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ---
@@ -224,7 +224,7 @@ Try these actions to test the system:
 
 - Check if Python service is running on port 8000
 - Verify virtual environment is activated
-- Check `python-ai-service/main.py` for errors
+- Check terminal logs from `uvicorn api:app --reload --host 0.0.0.0 --port 8000`
 
 ### Issue: "Location not working"
 
@@ -266,7 +266,7 @@ Try these actions to test the system:
    - Submit test reports through the UI
 
 2. **Train AI Model**:
-   - Replace mock predictions in `python-ai-service/main.py`
+   - Improve inference logic in `api.py`, `predict_species.py`, and `predict_count.py`
    - Train CNN on actual bite images
    - Update model loading code
 

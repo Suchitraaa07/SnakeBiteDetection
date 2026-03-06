@@ -75,14 +75,12 @@ if %ERRORLEVEL% NEQ 0 (
 cd ..
 echo.
 
-REM Setup Python virtual environment
+REM Setup Python virtual environment (project root)
 echo ========================================
 echo Setting up Python AI service...
 echo ========================================
 where python >nul 2>nul
 if %ERRORLEVEL% EQU 0 (
-    cd python-ai-service
-    
     echo Creating virtual environment...
     python -m venv venv
     
@@ -93,7 +91,6 @@ if %ERRORLEVEL% EQU 0 (
     pip install -r requirements.txt
     
     call venv\Scripts\deactivate.bat
-    cd ..
     echo [OK] Python AI service setup complete
 ) else (
     echo [SKIP] Skipping Python setup (Python not found)
@@ -123,9 +120,8 @@ echo 3. Create 'bite-images' bucket in Supabase Storage
 echo 4. Start the development servers:
 echo.
 echo    Terminal 1:  npm run dev
-echo    Terminal 2:  cd python-ai-service
-echo                 venv\Scripts\activate
-echo                 python main.py
+echo    Terminal 2:  venv\Scripts\activate
+echo                 uvicorn api:app --reload --host 0.0.0.0 --port 8000
 echo.
 echo See SETUP_GUIDE.md for detailed instructions.
 echo.

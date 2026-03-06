@@ -250,11 +250,10 @@ cd frontend
 npm run dev
 ```
 
-Python AI Service (create separately):
+Python AI Service (run from repo root):
 
 ```bash
-cd python-ai-service
-uvicorn main:app --reload --port 8000
+uvicorn api:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### 7. Access the Application
@@ -344,11 +343,10 @@ Body: image file
 
 ```json
 {
-  "prediction": "snake_bite",
-  "confidence": 0.95,
-  "species": "Indian Cobra",
-  "severity": "severe",
-  "recommendations": ["Seek immediate medical attention", "Keep victim calm"]
+  "snake_detected": true,
+  "species": "Venomous",
+  "confidence": 0.87,
+  "snake_count": 2
 }
 ```
 

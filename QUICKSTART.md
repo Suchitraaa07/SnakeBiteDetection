@@ -1,123 +1,96 @@
-# 🚀 SylvanGuard - Quick Start (5 Minutes)
+# SylvanGuard Quickstart (Contributors)
 
-Get SylvanGuard running quickly with this condensed guide.
+This guide is for new contributors cloning this repo.
 
----
+## 1. Prerequisites
 
-## ⚡ Fast Setup
+- Node.js 18+
+- Python 3.9+
+- Git
+- Supabase project (for backend DB + storage)
 
-### 1️⃣ Run Setup Script
+## 2. Clone and Install
 
-**Windows:**
+```bash
+git clone <your-repo-url>
+cd SnakeBiteDetection
+```
+
+Windows:
 
 ```bash
 setup.bat
 ```
 
-**macOS/Linux:**
+macOS/Linux:
 
 ```bash
 chmod +x setup.sh start-dev.sh
 ./setup.sh
 ```
 
-This installs all dependencies automatically!
+## 3. Configure Backend Env
 
----
+Copy `backend/.env.example` to `backend/.env` and fill real values:
 
-### 2️⃣ Configure Supabase (3 minutes)
-
-1. **Create Supabase Project**: https://app.supabase.com
-2. **Get Credentials**: Settings → API → Copy URL and anon key
-3. **Edit `backend/.env`**:
-
-   ```env
-   SUPABASE_URL=https://xxxxx.supabase.co
-   SUPABASE_ANON_KEY=eyJhbGc...your-key-here
-   ```
-
-4. **Enable PostGIS**: Database → Extensions → Enable "postgis"
-
-5. **Run Migration**: SQL Editor → Paste contents of `backend/supabase/migrations/001_initial_schema.sql` → Run
-
-6. **Create Storage**: Storage → New Bucket → Name: `bite-images` → Public
-
----
-
-### 3️⃣ Start Servers
-
-**Terminal 1** (Backend + Frontend):
-
-```bash
-# Windows
-start-dev.bat
-
-# macOS/Linux
-./start-dev.sh
+```env
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+PORT=5000
+NODE_ENV=development
+FRONTEND_URL=http://localhost:5173
+AI_SERVICE_URL=http://localhost:8000/predict
 ```
 
-**Terminal 2** (Python AI):
+## 4. Setup Supabase
+
+0. If this repository or its history was ever shared with real keys, rotate Supabase `anon` and `service_role` keys first.
+1. Run SQL migration from `backend/supabase/migrations/001_initial_schema.sql`.
+2. Create storage bucket `bite-images` (public or with suitable policies).
+
+## 5. Add Model Files
+
+Place model files inside `models/`:
+
+- Preferred species model: `snake_species_model.pt`
+- Fallback species model: `snake_model.pt` (already supported)
+- Optional count model: `snake_count_model.pt`
+
+If count model is missing, API falls back to count `1`.
+
+## 6. Run Services
+
+Terminal 1 (Node backend + frontend):
 
 ```bash
-cd python-ai-service
+npm run dev
+```
 
-# Windows
+Terminal 2 (Python AI service):
+
+Windows:
+
+```bash
 venv\Scripts\activate
-
-# macOS/Linux
-source venv/bin/activate
-
-python main.py
+uvicorn api:app --reload --host 0.0.0.0 --port 8000
 ```
 
----
+macOS/Linux:
 
-## ✅ Verify
+```bash
+source venv/bin/activate
+uvicorn api:app --reload --host 0.0.0.0 --port 8000
+```
 
-Open in browser:
+## 7. Verify
 
-- 🌐 Frontend: http://localhost:5173
-- 🔧 Backend: http://localhost:5000/api/health
-- 🤖 AI Service: http://localhost:8000/health
+- Frontend: http://localhost:5173
+- Backend health: http://localhost:5000/api/health
+- AI health: http://localhost:8000/health
 
----
+## 8. Common Issues
 
-## 🎯 First Test
-
-1. Click **"Report Bite"** tab
-2. Select **Snake Bite** or **Monkey Bite**
-3. Upload any image (demo mode uses mock AI)
-4. Click **"Get Current Location"**
-5. Complete remaining steps
-6. Submit!
-
----
-
-## 📚 More Info
-
-- Full setup: [SETUP_GUIDE.md](SETUP_GUIDE.md)
-- API docs: [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
-- Structure: [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
-
----
-
-## 🆘 Quick Fixes
-
-**"Cannot connect to Supabase"**
-→ Check `.env` file has correct credentials
-
-**"AI Service unavailable"**
-→ Start Python service in Terminal 2
-
-**"Location not working"**
-→ Allow location permissions in browser
-
----
-
-## 🎨 Custom Colors
-
-Edit `frontend/tailwind.config.js` to change the theme!
-
----
-
-**Ready in 5 minutes! 🌲**
+- `502` on `/api/ai/predict`: Python AI service not running or crashed.
+- `Species model not loaded`: missing `models/snake_species_model.pt` and `models/snake_model.pt`.
+- Supabase upload errors: verify `backend/.env` keys and `bite-images` bucket.
