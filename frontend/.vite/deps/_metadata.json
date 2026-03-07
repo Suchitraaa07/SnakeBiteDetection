@@ -1,0 +1,58 @@
+{
+  "hash": "efd832e8",
+  "configHash": "233370b7",
+  "lockfileHash": "511daf5a",
+  "browserHash": "30da5f12",
+  "optimized": {
+    "react": {
+      "src": "../../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "0755462c",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "3bb92add",
+      "needsInterop": true
+    },
+    "lucide-react": {
+      "src": "../../../node_modules/lucide-react/dist/esm/lucide-react.js",
+      "file": "lucide-react.js",
+      "fileHash": "7c916f27",
+      "needsInterop": false
+    },
+    "react-leaflet": {
+      "src": "../../../node_modules/react-leaflet/lib/index.js",
+      "file": "react-leaflet.js",
+      "fileHash": "a1e9931c",
+      "needsInterop": false
+    },
+    "leaflet": {
+      "src": "../../../node_modules/leaflet/dist/leaflet-src.js",
+      "file": "leaflet.js",
+      "fileHash": "08539295",
+      "needsInterop": true
+    },
+    "leaflet.heat": {
+      "src": "../../../node_modules/leaflet.heat/dist/leaflet-heat.js",
+      "file": "leaflet__heat.js",
+      "fileHash": "ed0f6f49",
+      "needsInterop": true
+    }
+  },
+  "chunks": {
+    "chunk-3NY7IJP4": {
+      "file": "chunk-3NY7IJP4.js"
+    },
+    "chunk-TSK6YLDR": {
+      "file": "chunk-TSK6YLDR.js"
+    },
+    "chunk-XLTL77SC": {
+      "file": "chunk-XLTL77SC.js"
+    },
+    "chunk-G3PMV62Z": {
+      "file": "chunk-G3PMV62Z.js"
+    }
+  }
+}

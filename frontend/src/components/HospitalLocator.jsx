@@ -50,11 +50,12 @@ const MapUpdater = ({ center, zoom }) => {
 };
 
 const HospitalLocator = () => {
-    const [hospitals, setHospitals] = useState([]);
+    const [snakebiteHospitals, setSnakebiteHospitals] = useState([]);
+    const [generalHospitals, setGeneralHospitals] = useState([]);
     const [userLocation, setUserLocation] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [incidentType, setIncidentType] = useState('snake_bite');
+    const [incidentType, setIncidentType] = useState('snake_bite'); // default for filter, but we fetch both
     const [radius, setRadius] = useState(50);
     const [mapCenter, setMapCenter] = useState([19.0760, 72.8777]); // Default: Mumbai
     const [mapZoom, setMapZoom] = useState(11);
@@ -87,28 +88,38 @@ const HospitalLocator = () => {
         );
     };
 
-    // Fetch nearby hospitals
+    // Fetch both snakebite and general hospitals in parallel
     const fetchNearbyHospitals = async (lat, lng) => {
         setLoading(true);
         setError('');
-
         try {
-            const params = new URLSearchParams({
+            // Snakebite hospitals (with antivenin)
+            const snakeParams = new URLSearchParams({
                 latitude: lat,
                 longitude: lng,
-                type: incidentType,
+                type: 'snake_bite',
                 radius: radius,
-                limit: 20
+                limit: 5
             });
-
-            const response = await fetch(`/api/hospitals/nearest?${params}`);
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Failed to fetch hospitals');
-            }
-
-            setHospitals(result.hospitals || []);
+            // General hospitals (any type)
+            const generalParams = new URLSearchParams({
+                latitude: lat,
+                longitude: lng,
+                radius: radius,
+                limit: 5
+            });
+            const [snakeRes, generalRes] = await Promise.all([
+                fetch(`/api/hospitals/nearest?${snakeParams}`),
+                fetch(`/api/hospitals/nearest?${generalParams}`)
+            ]);
+            const [snakeData, generalData] = await Promise.all([
+                snakeRes.json(),
+                generalRes.json()
+            ]);
+            if (!snakeRes.ok) throw new Error(snakeData.error || 'Failed to fetch snakebite hospitals');
+            if (!generalRes.ok) throw new Error(generalData.error || 'Failed to fetch general hospitals');
+            setSnakebiteHospitals(snakeData.hospitals || []);
+            setGeneralHospitals(generalData.hospitals || []);
         } catch (err) {
             setError(err.message);
             console.error('Error fetching hospitals:', err);
@@ -138,7 +149,11 @@ const HospitalLocator = () => {
         if (userLocation) {
             fetchNearbyHospitals(userLocation.latitude, userLocation.longitude);
         }
-    }, [incidentType, radius]);
+    }, [radius, userLocation]);
+
+    // Filter generalHospitals to exclude any hospital already in snakebiteHospitals
+    const snakebiteIds = new Set(snakebiteHospitals.map(h => h.id));
+    const filteredGeneralHospitals = generalHospitals.filter(h => !snakebiteIds.has(h.id));
 
     return (
         <div className="space-y-6">
@@ -244,9 +259,53 @@ const HospitalLocator = () => {
                         )}
 
                         {/* Hospital Markers */}
-                        {hospitals.map((hospital) => (
+                        {/* Show both types of hospitals on the map */}
+                        {snakebiteHospitals.map((hospital) => (
                             <Marker
-                                key={hospital.id}
+                                key={`marker-snakebite-${hospital.id}`}
+                                position={[hospital.latitude, hospital.longitude]}
+                                icon={hospitalIcon}
+                            >
+                                <Popup maxWidth={300}>
+                                    <div className="p-2">
+                                        <h3 className="font-bold text-lg mb-2">{hospital.name}</h3>
+                                        <div className="space-y-1 text-sm">
+                                            <p className="flex items-center gap-2">
+                                                <MapPin className="w-4 h-4" />
+                                                {hospital.distance_km} km away
+                                            </p>
+                                            {hospital.phone && (
+                                                <p className="flex items-center gap-2">
+                                                    <Phone className="w-4 h-4" />
+                                                    {hospital.phone}
+                                                </p>
+                                            )}
+                                            {hospital.is_24x7 && (
+                                                <p className="flex items-center gap-2">
+                                                    <Clock className="w-4 h-4" />
+                                                    24/7 Available
+                                                </p>
+                                            )}
+                                            {hospital.rating && (
+                                                <p className="flex items-center gap-2">
+                                                    <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                                                    {hospital.rating} / 5
+                                                </p>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => openDirections(hospital)}
+                                            className="mt-3 w-full bg-moss-600 hover:bg-moss-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-lg active:scale-95"
+                                        >
+                                            Get Directions
+                                        </button>
+                                    </div>
+                                </Popup>
+                            </Marker>
+                        ))}
+                        {filteredGeneralHospitals.map((hospital) => (
+                            <Marker
+                                key={`marker-general-${hospital.id}`}
                                 position={[hospital.latitude, hospital.longitude]}
                                 icon={hospitalIcon}
                             >
@@ -291,30 +350,24 @@ const HospitalLocator = () => {
                 </div>
             </div>
 
-            {/* Hospital List */}
-            <div className="glass-card p-6">
-                <h3 className="text-xl font-bold text-white mb-4">
-                    {hospitals.length} Hospitals Found
-                </h3>
-
+            {/* Hospital Lists */}
+            <div className="glass-card p-6 mb-6">
+                <h3 className="text-xl font-bold text-white mb-4">Nearest Hospitals with Anti-venom</h3>
                 {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                        <div className="text-center">
-                            <Loader2 className="w-12 h-12 text-moss-500 animate-spin mx-auto mb-4" />
-                            <p className="text-gray-300">Loading hospitals...</p>
-                        </div>
+                    <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-8 h-8 text-moss-500 animate-spin mx-auto mb-4" />
+                        <p className="text-gray-300">Loading hospitals...</p>
                     </div>
-                ) : hospitals.length === 0 ? (
-                    <div className="text-center py-12 bg-forest-900/50 rounded-xl">
-                        <MapPin className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-                        <p className="text-gray-300 text-lg">No hospitals found in this radius</p>
-                        <p className="text-gray-400 text-sm mt-2">Try increasing the search radius</p>
+                ) : snakebiteHospitals.length === 0 ? (
+                    <div className="text-center py-8 bg-forest-900/50 rounded-xl">
+                        <MapPin className="w-10 h-10 text-gray-500 mx-auto mb-2" />
+                        <p className="text-gray-300 text-base">No snakebite treatment hospitals found in this radius</p>
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        {hospitals.map((hospital, index) => (
+                        {snakebiteHospitals.map((hospital, index) => (
                             <div
-                                key={hospital.id}
+                                key={`snakebite-${hospital.id}`}
                                 className="bg-white/5 hover:bg-white/10 border border-white/10 hover:border-moss-500/50 rounded-xl p-4 transition-all duration-300 cursor-pointer hover:shadow-lg"
                                 onClick={() => {
                                     setMapCenter([hospital.latitude, hospital.longitude]);
@@ -329,29 +382,24 @@ const HospitalLocator = () => {
                                             </span>
                                             <h4 className="text-lg font-bold text-white">{hospital.name}</h4>
                                         </div>
-
                                         <p className="text-gray-300 text-sm mb-3">{hospital.address}</p>
-
                                         <div className="flex flex-wrap gap-3 text-sm">
                                             <span className="flex items-center gap-1 text-moss-300">
                                                 <MapPin className="w-4 h-4" />
                                                 {hospital.distance_km} km
                                             </span>
-
                                             {hospital.is_24x7 && (
                                                 <span className="flex items-center gap-1 text-forest-300">
                                                     <Clock className="w-4 h-4" />
                                                     24/7
                                                 </span>
                                             )}
-
                                             {hospital.rating && (
                                                 <span className="flex items-center gap-1 text-yellow-400">
                                                     <Star className="w-4 h-4 fill-yellow-400" />
                                                     {hospital.rating}
                                                 </span>
                                             )}
-
                                             {hospital.has_treatment && (
                                                 <span className="bg-moss-500/20 text-moss-300 px-2 py-1 rounded-full text-xs font-semibold">
                                                     ✓ Anti-venom Available
@@ -359,7 +407,92 @@ const HospitalLocator = () => {
                                             )}
                                         </div>
                                     </div>
-
+                                    <div className="flex flex-col gap-2">
+                                        {hospital.emergency_phone && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    callHospital(hospital.emergency_phone);
+                                                }}
+                                                className="btn-danger px-4 py-2 text-sm whitespace-nowrap"
+                                            >
+                                                <Phone className="w-4 h-4 inline mr-2" />
+                                                Emergency Call
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openDirections(hospital);
+                                            }}
+                                            className="btn-secondary px-4 py-2 text-sm whitespace-nowrap"
+                                        >
+                                            <Navigation className="w-4 h-4 inline mr-2" />
+                                            Directions
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+            <div className="glass-card p-6">
+                <h3 className="text-xl font-bold text-white mb-4">Nearest General Hospitals</h3>
+                {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-8 h-8 text-moss-500 animate-spin mx-auto mb-4" />
+                        <p className="text-gray-300">Loading hospitals...</p>
+                    </div>
+                ) : generalHospitals.length === 0 ? (
+                    <div className="text-center py-8 bg-forest-900/50 rounded-xl">
+                        <MapPin className="w-10 h-10 text-gray-500 mx-auto mb-2" />
+                        <p className="text-gray-300 text-base">No general hospitals found in this radius</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {generalHospitals.map((hospital, index) => (
+                            <div
+                                key={`general-${hospital.id}`}
+                                className="bg-white/5 hover:bg-white/10 border border-white/10 hover:border-moss-500/50 rounded-xl p-4 transition-all duration-300 cursor-pointer hover:shadow-lg"
+                                onClick={() => {
+                                    setMapCenter([hospital.latitude, hospital.longitude]);
+                                    setMapZoom(15);
+                                }}
+                            >
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <span className="bg-moss-500/20 text-moss-300 px-3 py-1 rounded-full text-sm font-semibold">
+                                                #{index + 1}
+                                            </span>
+                                            <h4 className="text-lg font-bold text-white">{hospital.name}</h4>
+                                        </div>
+                                        <p className="text-gray-300 text-sm mb-3">{hospital.address}</p>
+                                        <div className="flex flex-wrap gap-3 text-sm">
+                                            <span className="flex items-center gap-1 text-moss-300">
+                                                <MapPin className="w-4 h-4" />
+                                                {hospital.distance_km} km
+                                            </span>
+                                            {hospital.is_24x7 && (
+                                                <span className="flex items-center gap-1 text-forest-300">
+                                                    <Clock className="w-4 h-4" />
+                                                    24/7
+                                                </span>
+                                            )}
+                                            {hospital.rating && (
+                                                <span className="flex items-center gap-1 text-yellow-400">
+                                                    <Star className="w-4 h-4 fill-yellow-400" />
+                                                    {hospital.rating}
+                                                </span>
+                                            )}
+                                            {hospital.has_treatment && (
+                                                <span className="bg-moss-500/20 text-moss-300 px-2 py-1 rounded-full text-xs font-semibold">
+                                                    ✓ Anti-venom Available
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
                                     <div className="flex flex-col gap-2">
                                         {hospital.emergency_phone && (
                                             <button

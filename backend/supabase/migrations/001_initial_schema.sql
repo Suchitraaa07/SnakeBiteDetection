@@ -189,7 +189,8 @@ BEGIN
     SELECT 
         h.id,
         h.name,
-        h.address,
+        h.city,
+        h.state,
         h.phone,
         h.emergency_phone,
         ROUND(
@@ -218,6 +219,7 @@ BEGIN
         AND (
             (incident_type_param = 'snake_bite' AND h.has_snake_antivenom = true)
             OR (incident_type_param = 'monkey_bite' AND h.has_monkey_treatment = true)
+            OR (incident_type_param IS NULL OR incident_type_param = '')
         )
     ORDER BY distance_km ASC
     LIMIT limit_count;

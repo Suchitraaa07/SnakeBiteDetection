@@ -157,12 +157,20 @@ const ReportForm = ({ onSubmitSuccess }) => {
             submitData.append('notes', formData.notes);
 
             // Submit to backend
+
             const response = await fetch('/api/reports/create', {
                 method: 'POST',
                 body: submitData
             });
 
-            const result = await response.json();
+
+            let result;
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                result = await response.json();
+            } else {
+                result = { error: await response.text() };
+            }
 
             if (!response.ok) {
                 // construct a more informative error message

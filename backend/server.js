@@ -372,10 +372,11 @@ app.get('/api/heatmap', async (req, res) => {
             data: heatmapData
         });
     } catch (error) {
-        console.error('Error fetching heatmap data:', error);
+        console.error('Error fetching heatmap data:', error, error && error.stack);
         res.status(500).json({ 
             error: 'Failed to fetch heatmap data',
-            details: error.message 
+            details: error.message,
+            stack: error.stack
         });
     }
 });
